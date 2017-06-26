@@ -29,6 +29,8 @@ typedef void (^resoreProductsCompleteResponseBlock) (SKPaymentQueue* payment,NSE
 //init With Product Identifiers
 - (id)initWithProductIdentifiers:(NSSet *)productIdentifiers;
 
+- (id)initWithProductIdentifiers:(NSSet *)productIdentifiers queue:(NSOperationQueue *) queue;
+
 //get Products List
 - (void)requestProductsWithCompletion:(IAPProductsResponseBlock)completion;
 

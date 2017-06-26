@@ -22,13 +22,19 @@
 @property (nonatomic,copy) checkReceiptCompleteResponseBlock checkReceiptCompleteBlock;
 
 @property (nonatomic,strong) NSMutableData* receiptRequestData;
+@property (nonatomic, strong) NSOperationQueue* queue;
 @end
 
 @implementation IAPHelper
 
 - (id)initWithProductIdentifiers:(NSSet *)productIdentifiers {
+    return [self initWithProductIdentifiers:productIdentifiers queue:[NSOperationQueue new]];
+}
+
+- (id)initWithProductIdentifiers:(NSSet *)productIdentifiers queue:(NSOperationQueue *) queue {
     if ((self = [super init])) {
         
+        _queue = queue;
         // Store product identifiers
         _productIdentifiers = productIdentifiers;
         
@@ -313,10 +319,7 @@
                                                          error:&jsonError
                         ];
     }
-
-
-//    NSString* jsonStr = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
-
+    
     NSURL *requestURL = nil;
     if(_production)
     {
@@ -329,11 +332,15 @@
     NSMutableURLRequest *req = [[NSMutableURLRequest alloc] initWithURL:requestURL];
     [req setHTTPMethod:@"POST"];
     [req setHTTPBody:jsonData];
-
-    NSURLConnection *conn = [[NSURLConnection alloc] initWithRequest:req delegate:self];
-    if(conn) {
+    
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:self.queue];
+    NSURLSessionTask *data = [session dataTaskWithRequest:req];
+    
+    if (data) {
         self.receiptRequestData = [[NSMutableData alloc] init];
-    } else {
+    }
+    else {
         NSError* error = nil;
         NSMutableDictionary* errorDetail = [[NSMutableDictionary alloc] init];
         [errorDetail setValue:@"Can't create connection" forKey:NSLocalizedDescriptionKey];
@@ -342,33 +349,39 @@
             _checkReceiptCompleteBlock(nil,error);
         }
     }
+    
+    [data resume];
+    
 }
 
--(void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
-    NSLog(@"Cannot transmit receipt data. %@",[error localizedDescription]);
-    
-    if(_checkReceiptCompleteBlock) {
-        _checkReceiptCompleteBlock(nil,error);
+-(void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    if (error) {
+        
+        NSLog(@"Cannot transmit receipt data. %@",[error localizedDescription]);
+        
+        if(_checkReceiptCompleteBlock) {
+            _checkReceiptCompleteBlock(nil,error);
+        }
     }
-    
+    else {
+        NSString *response = [[NSString alloc] initWithData:self.receiptRequestData encoding:NSUTF8StringEncoding];
+        
+        if(_checkReceiptCompleteBlock) {
+            _checkReceiptCompleteBlock(response,nil);
+        }
+        
+    }
 }
 
--(void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response {
+-(void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response
+ completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler {
     [self.receiptRequestData setLength:0];
+    completionHandler(NSURLSessionResponseAllow);
 }
 
--(void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
+-(void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     [self.receiptRequestData appendData:data];
 }
-
--(void)connectionDidFinishLoading:(NSURLConnection *)connection {
-    NSString *response = [[NSString alloc] initWithData:self.receiptRequestData encoding:NSUTF8StringEncoding];
-    
-    if(_checkReceiptCompleteBlock) {
-        _checkReceiptCompleteBlock(response,nil);
-    }
-}
-
 
 - (NSString *)getLocalePrice:(SKProduct *)product {
     if (product) {
@@ -380,7 +393,6 @@
         return [formatter stringFromNumber:product.price];
     }
     return @"";
-    
     
 }
 @end
