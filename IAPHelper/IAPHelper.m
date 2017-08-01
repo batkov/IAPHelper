@@ -100,6 +100,14 @@
 
 }
 
+- (void)request:(SKRequest *)request didFailWithError:(NSError *)error {
+    self.request = nil;
+    
+    if(_requestProductsBlock) {
+        _requestProductsBlock((SKProductsRequest *)request, nil, error);
+    }
+}
+
 - (void)recordTransaction:(SKPaymentTransaction *)transaction {    
     // TODO: Record the transaction on the server side...    
 }
