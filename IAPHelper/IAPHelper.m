@@ -110,7 +110,7 @@
     self.request = nil;
     
     if(_requestProductsBlock) {
-        _requestProductsBlock((SKProductsRequest *)request, nil, error);
+        _requestProductsBlock((SKProductsRequest *)request, nil);
     }
 }
 
